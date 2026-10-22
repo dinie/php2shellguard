@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import detection, nextdns
+from . import active, detection, nextdns, probe
 from .models import CheckRequest, CheckResponse, CveInfo, StatsResponse
 from .storage import Storage
 
@@ -37,20 +38,30 @@ def _extract_host(url: str) -> str:
     raise HTTPException(status_code=422, detail="url has no usable host")
 
 
-def create_app(db_path: str | None = None) -> FastAPI:
+def create_app(db_path: str | None = None, http_client_factory=None) -> FastAPI:
     load_dotenv()
     # db_path/PHP2SHELL_DATABASE_URL/PHP2SHELL_DB resolution lives in Storage.
     storage = Storage(db_path)
+    # PHP2SHELL_ACTIVE switches /api/v1/check and the NextDNS input onto the
+    # active detector (app/active.py); the recheck task always uses it.
+    active_mode = active.enabled_from_env()
     nextdns_config = nextdns.NextDNSConfig.from_env()
     stream_status = nextdns.StreamStatus(enabled=nextdns_config is not None)
+    scan_client: httpx.AsyncClient | None = None
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        nonlocal scan_client
         consumer = None
         stream_task = None
+        if active_mode:
+            factory = http_client_factory or httpx.AsyncClient
+            scan_client = factory(
+                timeout=httpx.Timeout(probe.DEFAULT_TIMEOUT_SECONDS)
+            )
         if nextdns_config is not None:
             consumer = nextdns.NextDNSStreamConsumer(
-                nextdns_config, storage, stream_status
+                nextdns_config, storage, stream_status, active_mode=active_mode
             )
             stream_task = asyncio.create_task(consumer.run())
         yield
@@ -59,6 +70,8 @@ def create_app(db_path: str | None = None) -> FastAPI:
             await asyncio.gather(stream_task, return_exceptions=True)
         if consumer is not None:
             await consumer.aclose()
+        if scan_client is not None:
+            await scan_client.aclose()
 
     app = FastAPI(title="PHP2Shell Guard API", version="1.0.0", lifespan=lifespan)
     templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -71,13 +84,22 @@ def create_app(db_path: str | None = None) -> FastAPI:
     app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
     @app.post("/api/v1/check", response_model=CheckResponse)
-    def check(payload: CheckRequest) -> CheckResponse:
+    async def check(payload: CheckRequest) -> CheckResponse:
         host = _extract_host(payload.url)
-        analysis = detection.evaluate(
-            server=payload.server,
-            x_powered_by=payload.x_powered_by,
-            cookie_names=payload.cookie_names,
-        )
+        analysis = None
+        if active_mode and scan_client is not None:
+            try:
+                analysis = await active.investigate(scan_client, host)
+            except Exception:
+                # Probe failed (host unreachable etc.); fall back to whatever
+                # the extension observed passively.
+                analysis = None
+        if analysis is None:
+            analysis = detection.evaluate(
+                server=payload.server,
+                x_powered_by=payload.x_powered_by,
+                cookie_names=payload.cookie_names,
+            )
         checked_at = datetime.now(timezone.utc)
         storage.record_check(
             host=host,

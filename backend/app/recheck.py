@@ -2,12 +2,13 @@
 
     */15 * * * * cd /path/to/backend && .venv/bin/python -m app.recheck
 
-Each run actively probes every host in the stats database (one header-only
-HTTPS request per host, identical to the NextDNS input's probe), appends a
-fresh verdict with ``origin="recheck"``, and maintains the ``host_registry``
-table: the host's *original* status is captured on first sight and never
-overwritten, while current_* tracks the latest verdict. Status transitions
-are printed to stdout so they land in the cron log.
+Each run investigates every host in the stats database with the active
+detector (app/active.py — browser-like redirect-following GET then, when the
+passive headers stay silent, body fingerprints and PHP disclosure endpoints),
+appends a fresh verdict with ``origin="recheck"``, and maintains the
+``host_registry`` table: the host's *original* status is captured on first
+sight and never overwritten, while current_* tracks the latest verdict.
+Status transitions are printed to stdout so they land in the cron log.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from dataclasses import dataclass
 import httpx
 from dotenv import load_dotenv
 
-from . import detection, probe
+from . import active, detection, probe
 from .storage import Storage
 
 PROBE_CONCURRENCY = 8
@@ -40,7 +41,7 @@ async def _recheck_one(
 ) -> RecheckResult:
     try:
         async with semaphore:
-            analysis = await probe.fetch_analysis(client, host)
+            analysis = await active.investigate(client, host)
     except Exception as exc:
         return RecheckResult(host, previous_status, None, str(exc))
     return RecheckResult(host, previous_status, analysis, None)

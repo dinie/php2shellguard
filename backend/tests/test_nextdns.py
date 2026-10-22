@@ -211,7 +211,8 @@ def test_storage_state_roundtrip(tmp_path):
 class FakeConsumer:
     instances = []
 
-    def __init__(self, config, storage, status):
+    def __init__(self, config, storage, status, **kwargs):
+        self.kwargs = kwargs
         self.ran = False
         self.closed = False
         FakeConsumer.instances.append(self)

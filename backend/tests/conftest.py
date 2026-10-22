@@ -13,6 +13,7 @@ def isolated_env(monkeypatch):
         "NEXTDNS_CHECK_TTL_HOURS",
         "PHP2SHELL_DB",
         "PHP2SHELL_DATABASE_URL",
+        "PHP2SHELL_ACTIVE",
     ):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setattr("app.main.load_dotenv", lambda *a, **k: False)

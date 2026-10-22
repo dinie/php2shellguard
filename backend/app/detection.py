@@ -134,7 +134,7 @@ def evaluate(
     for source, value in (("x-powered-by", x_powered_by), ("server", server)):
         version = parse_version(value)
         if version:
-            return _verdict_for_version(version, source)
+            return verdict_for_version(version, source)
 
     cookies = cookie_names or []
     if any(_PHPSESSID_RE.match(name) for name in cookies):
@@ -155,7 +155,12 @@ def evaluate(
     )
 
 
-def _verdict_for_version(version: tuple[int, int, int], source: str) -> Analysis:
+def verdict_for_version(version: tuple[int, int, int], source: str) -> Analysis:
+    """php2shell verdict for a known PHP version tuple.
+
+    Public so the active detector (app/active.py) can reuse the same matrix
+    for version strings unearthed beyond the passive headers.
+    """
     major_minor = version[:2]
     version_str = _format_version(version)
     branch_str = f"{version[0]}.{version[1]}"

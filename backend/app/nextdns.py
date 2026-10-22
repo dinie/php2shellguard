@@ -8,7 +8,8 @@ and evaluates the php2shell verdict. Verdicts are stored with
 
 Unlike the browser-extension flow (strictly passive), this input source
 sends traffic to the analysed sites: one header-only HTTPS request per
-domain, de-duplicated by a TTL window.
+domain, de-duplicated by a TTL window. With ``PHP2SHELL_ACTIVE`` set it
+upgrades to the full active detector (app/active.py) instead.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from . import probe
+from . import active, probe
 from .storage import Storage
 
 logger = logging.getLogger(__name__)
@@ -143,10 +144,12 @@ class NextDNSStreamConsumer:
         storage: Storage,
         status: StreamStatus,
         client: httpx.AsyncClient | None = None,
+        active_mode: bool = False,
     ) -> None:
         self._config = config
         self._storage = storage
         self._status = status
+        self._active_mode = active_mode
         # Created lazily: asyncio primitives must bind inside a running loop.
         self._semaphore: asyncio.Semaphore | None = None
         self._tasks: set[asyncio.Task] = set()
@@ -236,10 +239,11 @@ class NextDNSStreamConsumer:
         task.add_done_callback(self._tasks.discard)
 
     async def _probe(self, domain: str) -> None:
+        scan = active.investigate if self._active_mode else probe.fetch_analysis
         try:
             assert self._semaphore is not None
             async with self._semaphore:
-                analysis = await probe.fetch_analysis(self._probe_client, domain)
+                analysis = await scan(self._probe_client, domain)
         except asyncio.CancelledError:
             raise
         except Exception as exc:

@@ -25,6 +25,7 @@ Configuration:
 |-----------------|----------------------------|---------|
 | `PHP2SHELL_DATABASE_URL` | — | SQLAlchemy database URL; when set, stats are stored there instead of SQLite. `postgresql://`/`postgres://` URLs use the psycopg v3 driver |
 | `PHP2SHELL_DB`  | `backend/php2shell-stats.db` | SQLite stats database path (ignored when `PHP2SHELL_DATABASE_URL` is set) |
+| `PHP2SHELL_ACTIVE` | off | When truthy (`1`/`true`/`yes`/`on`), the `/check` endpoint and the NextDNS input use the full active detector (`app/active.py`) instead of passive/header-only evaluation. Rechecks are always active |
 | `NEXTDNS_API_KEY` | — | NextDNS API key, sent as `X-Api-Key` (enables the stream input together with `NEXTDNS_PROFILE`) |
 | `NEXTDNS_PROFILE` | — | NextDNS profile ID to stream logs from |
 | `NEXTDNS_BASE_URL` | `https://api.nextdns.io` | API base URL override |
@@ -40,7 +41,9 @@ For each newly observed domain it **actively probes** the site's HTTPS
 response headers (a single header-only request, de-duplicated by
 `NEXTDNS_CHECK_TTL_HOURS`) and evaluates the php2shell verdict — unlike the
 strictly passive browser-extension flow, this input source sends traffic to
-the analysed sites.
+the analysed sites. With `PHP2SHELL_ACTIVE` set, the probes escalate to the
+full active detector (redirect-following, body fingerprints, disclosure
+endpoints) described in "Periodic rechecks" below.
 
 The last SSE event id is persisted in SQLite (`stream_state` table) and sent
 back as the `id` parameter after reconnects, so restarts do not miss or
@@ -50,12 +53,25 @@ skipped.
 
 ## Periodic rechecks (cron)
 
-`python -m app.recheck` re-verifies every stored host against its current
-headers. Each run actively probes `https://{host}/` (header-only, like the
-NextDNS input), appends a fresh verdict with `origin="recheck"`, and updates
-the `host_registry` table: the host's **original** status is captured on
-first sight and never overwritten, while `current_*` tracks the latest
-verdict. Status transitions are printed to stdout for the cron log.
+`python -m app.recheck` re-verifies every stored host with the **active
+detector** (`app/active.py`), which goes beyond self-disclosure headers. At
+most four small GETs are sent per host per run:
+
+1. `GET /` following redirects — the apex domain usually forwards to the real
+   app, whose final response headers and Set-Cookies are what a browser
+   would see; the passive verdict matrix runs on those.
+2. Landing-page body fingerprints (capped at 256 KiB, scanned transiently,
+   never stored): CMS `<meta name="generator">` tags, WordPress/Drupal asset
+   paths (`/wp-content/`, `/sites/default/files/…`), and `.php` links or
+   form targets. These upgrade a silent host from `not_php` to `unknown`.
+3. PHP easter eggs (`/?=<credits hash>` can leak the exact version) and an
+   exposed `/phpinfo.php`, either of which can produce a versioned verdict.
+
+Each run appends a fresh verdict with `origin="recheck"` (the `source`
+column records which signal produced it) and updates the `host_registry`
+table: the host's **original** status is captured on first sight and never
+overwritten, while `current_*` tracks the latest verdict. Status transitions
+are printed to stdout for the cron log.
 
 ```cron
 */15 * * * * cd /path/to/php2shell/backend && .venv/bin/python -m app.recheck
@@ -68,7 +84,10 @@ run (exit code stays 0).
 
 ### `POST /api/v1/check`
 
-Ingest one passive observation and return a verdict.
+Ingest one observation and return a verdict. By default the verdict is
+evaluated purely from the headers the extension forwarded (passive). With
+`PHP2SHELL_ACTIVE` set the backend instead investigates the host with the
+active detector, falling back to the forwarded headers if the probe fails.
 
 ```json
 {

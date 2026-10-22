@@ -93,10 +93,15 @@ PostgreSQL when `PHP2SHELL_DATABASE_URL` points at a Postgres server —
 see `backend/README.md`.
 
 Note that inputs differ in passivity: the extension only ever forwards
-headers your browser already received, while the optional NextDNS input sends
-one header-only HTTPS request per observed domain. If you enable the cron
-recheck (`python -m app.recheck`, see `backend/README.md`), it likewise sends
-a header-only request to every stored host on each run.
+headers your browser already received, the optional NextDNS input sends one
+header-only HTTPS request per observed domain, and the cron recheck
+(`python -m app.recheck`, see `backend/README.md`) runs the active detector,
+which follows redirects like a browser, scans the landing page for PHP
+fingerprints, and tries the classic PHP easter-egg/`phpinfo.php` disclosure
+endpoints (at most four small GETs per host per run). Body content is analysed
+transiently and never stored. Setting `PHP2SHELL_ACTIVE=1` turns that active
+detector on everywhere: submitted hosts are investigated server-side and the
+NextDNS probes also escalate to full fingerprinting.
 
 ## Tests
 
