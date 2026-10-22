@@ -153,8 +153,15 @@ verdict, last 50 checks). `404` when the host was never checked.
 
 ### `GET /` (HTML)
 
-Dashboard: stat cards, daily activity chart, version histogram, CVE summary,
-recent checks.
+Dashboard: stat cards (the verdict cards link to the filtered host
+listings), daily activity chart, version histogram, CVE summary, recent
+checks.
+
+### `GET /hosts` (HTML)
+
+Full host listing with latest verdict per host. `?status=` filters to one
+verdict: `vulnerable`, `patched`, `unknown` (undetermined) or `not_php`;
+invalid values return `422`.
 
 ### `GET /hosts/{host}` (HTML)
 

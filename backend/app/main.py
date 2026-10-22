@@ -23,6 +23,13 @@ from .storage import Storage
 
 BASE_DIR = Path(__file__).resolve().parent
 
+STATUS_LABELS = {
+    "vulnerable": "Vulnerable hosts",
+    "patched": "Patched hosts",
+    "unknown": "Undetermined hosts",
+    "not_php": "Hosts with no PHP evidence",
+}
+
 CVES = [CveInfo(**cve) for cve in detection.CVES]
 
 _HOSTNAME_RE = re.compile(
@@ -188,6 +195,22 @@ def create_app(db_path: str | None = None, http_client_factory=None) -> FastAPI:
                 "chart_max": chart_max,
                 "cves": detection.CVES,
                 "reference_url": "https://www.php2shell.com/",
+            },
+        )
+
+    @app.get("/hosts", response_class=HTMLResponse)
+    def hosts_listing(request: Request, status: str | None = None) -> HTMLResponse:
+        if status is not None and status not in STATUS_LABELS:
+            raise HTTPException(
+                status_code=422, detail=f"unknown status filter: {status}"
+            )
+        return templates.TemplateResponse(
+            request,
+            "hosts.html",
+            {
+                "hosts": storage.hosts(status=status),
+                "status": status,
+                "status_labels": STATUS_LABELS,
             },
         )
 

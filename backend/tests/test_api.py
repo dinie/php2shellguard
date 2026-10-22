@@ -167,6 +167,62 @@ def test_recheck_endpoint_get_not_allowed(client):
     assert client.get("/recheck").status_code == 405
 
 
+def _seed_verdicts(client):
+    client.post(
+        "/api/v1/check",
+        json={"url": "https://vuln.example.com/", "x_powered_by": "PHP/8.2.10"},
+    )
+    client.post(
+        "/api/v1/check",
+        json={"url": "https://ok.example.com/", "x_powered_by": "PHP/8.3.36"},
+    )
+    client.post(
+        "/api/v1/check",
+        json={"url": "https://hmm.example.com/", "cookie_names": ["PHPSESSID"]},
+    )
+
+
+def test_hosts_listing_shows_all_hosts(client):
+    _seed_verdicts(client)
+    page = client.get("/hosts")
+    assert page.status_code == 200
+    assert "All observed hosts" in page.text
+    for host in ("vuln.example.com", "ok.example.com", "hmm.example.com"):
+        assert host in page.text
+
+
+def test_hosts_listing_filters_by_verdict(client):
+    _seed_verdicts(client)
+    page = client.get("/hosts?status=vulnerable")
+    assert "Vulnerable hosts" in page.text
+    assert "vuln.example.com" in page.text
+    assert "ok.example.com" not in page.text
+    assert "hmm.example.com" not in page.text
+
+    page = client.get("/hosts?status=patched")
+    assert "ok.example.com" in page.text
+    assert "vuln.example.com" not in page.text
+
+    page = client.get("/hosts?status=unknown")
+    assert "Undetermined hosts" in page.text
+    assert "hmm.example.com" in page.text
+    assert "ok.example.com" not in page.text
+
+
+def test_hosts_listing_rejects_unknown_status_filter(client):
+    assert client.get("/hosts?status=bogus").status_code == 422
+
+
+def test_dashboard_status_cards_link_to_listings(client):
+    page = client.get("/")
+    for path in (
+        "/hosts?status=vulnerable",
+        "/hosts?status=patched",
+        "/hosts?status=unknown",
+    ):
+        assert f'href="{path}"' in page.text
+
+
 def test_recheck_endpoint_requires_token_when_configured(tmp_path, monkeypatch):
     monkeypatch.setenv("PHP2SHELL_RECHECK_TOKEN", "sekrit")
 

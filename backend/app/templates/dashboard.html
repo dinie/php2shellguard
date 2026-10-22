@@ -20,18 +20,18 @@
     <div class="card-value">{{ stats.unique_hosts }}</div>
     <div class="card-label">Unique hosts</div>
   </div>
-  <div class="card status-vulnerable">
+  <a class="card status-vulnerable" href="/hosts?status=vulnerable">
     <div class="card-value">{{ stats.host_status_counts.get("vulnerable", 0) }}</div>
-    <div class="card-label">Vulnerable hosts</div>
-  </div>
-  <div class="card status-patched">
+    <div class="card-label">Vulnerable hosts →</div>
+  </a>
+  <a class="card status-patched" href="/hosts?status=patched">
     <div class="card-value">{{ stats.host_status_counts.get("patched", 0) }}</div>
-    <div class="card-label">Patched hosts</div>
-  </div>
-  <div class="card status-unknown">
+    <div class="card-label">Patched hosts →</div>
+  </a>
+  <a class="card status-unknown" href="/hosts?status=unknown">
     <div class="card-value">{{ stats.host_status_counts.get("unknown", 0) }}</div>
-    <div class="card-label">Undetermined</div>
-  </div>
+    <div class="card-label">Undetermined →</div>
+  </a>
 </section>
 
 <section class="panel">

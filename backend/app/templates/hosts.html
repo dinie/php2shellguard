@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ status_labels[status] if status else "All hosts" }} · PHP2Shell Guard{% endblock %}
+{% block content %}
+<h1>{{ status_labels[status] if status else "All observed hosts" }}</h1>
+<p class="muted">
+  Latest verdict per host. Filter:
+  {% set tabs = [("", "All"), ("vulnerable", "vulnerable"), ("patched", "patched"),
+                 ("unknown", "undetermined"), ("not_php", "no PHP evidence")] %}
+  {% for value, label in tabs %}
+  <a class="chip {{ 'chip-' ~ value if value else 'chip-all' }} {{ 'chip-active' if status == (value or none) else '' }}"
+     href="{{ '/hosts?status=' ~ value if value else '/hosts' }}">{{ label }}</a>
+  {% endfor %}
+</p>
+
+<section class="panel">
+  {% if hosts %}
+  <table>
+    <thead>
+      <tr>
+        <th>Host</th><th>Verdict</th><th>PHP</th><th>Signal</th><th>Input</th>
+        <th>Checks</th><th>First seen (UTC)</th><th>Last seen (UTC)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in hosts %}
+      <tr>
+        <td><a href="/hosts/{{ row.host }}">{{ row.host }}</a></td>
+        <td><span class="chip chip-{{ row.status }}">{{ row.status.replace("unknown", "undetermined").replace("_", " ") }}</span></td>
+        <td>{{ row.php_version or "—" }}</td>
+        <td>{{ row.source or "—" }}</td>
+        <td>{{ row.origin }}</td>
+        <td>{{ row.total_checks }}</td>
+        <td class="nowrap">{{ row.first_seen }}</td>
+        <td class="nowrap">{{ row.last_seen }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No hosts {% if status %}with this verdict{% endif %} recorded yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

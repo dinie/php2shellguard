@@ -340,7 +340,9 @@ class Storage:
             "recent": [dict(row) for row in recent_rows],
         }
 
-    def hosts(self) -> list[dict]:
+    def hosts(self, status: str | None = None) -> list[dict]:
+        """All hosts with their latest verdict, optionally filtered to hosts
+        whose *latest* verdict equals *status*."""
         counts = (
             sa.select(
                 checks.c.host,
@@ -366,6 +368,8 @@ class Storage:
             .select_from(latest.join(counts, counts.c.host == latest.c.host))
             .order_by(counts.c.last_seen.desc())
         )
+        if status is not None:
+            stmt = stmt.where(latest.c.status == status)
         with self._engine.connect() as conn:
             rows = conn.execute(stmt).mappings().all()
         return [dict(row) for row in rows]

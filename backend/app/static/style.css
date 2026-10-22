@@ -69,6 +69,14 @@ h2 { font-size: 17px; margin: 0 0 14px; color: var(--text); }
 .card.status-patched .card-value { color: var(--patched); }
 .card.status-unknown { border-color: var(--unknown); }
 .card.status-unknown .card-value { color: var(--unknown); }
+a.card { color: inherit; text-decoration: none; transition: transform 0.1s ease; }
+a.card:hover { text-decoration: none; transform: translateY(-1px); }
+a.card .card-label { color: var(--muted); }
+a.card.status-vulnerable .card-label { color: var(--vuln); }
+a.card.status-patched .card-label { color: var(--patched); }
+a.card.status-unknown .card-label { color: var(--unknown); }
+.chip-all { background: rgba(129, 140, 248, 0.15); color: var(--accent); border: 1px solid var(--accent); }
+.chip-active { font-weight: 700; box-shadow: 0 0 0 2px currentColor inset; }
 
 .panel {
   background: var(--bg-panel);
