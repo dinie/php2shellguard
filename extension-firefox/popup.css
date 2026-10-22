@@ -1,0 +1,95 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  width: 340px;
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  background: #10142a;
+  color: #e7ecf7;
+  padding: 14px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+
+.card {
+  background: #1a2340;
+  border: 1px solid #2a3559;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.card-vulnerable { border-color: #ef4444; }
+.card-patched { border-color: #22c55e; }
+.card-unknown { border-color: #f59e0b; }
+.card-offline { border-color: #f59e0b; }
+
+.verdict { font-size: 18px; font-weight: 800; letter-spacing: 0.04em; }
+.verdict-vulnerable { color: #ef4444; }
+.verdict-patched { color: #22c55e; }
+.verdict-unknown { color: #f59e0b; }
+.verdict-offline { color: #f59e0b; }
+.verdict-pending, .verdict-not_php { color: #93a0c2; }
+
+.host {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: #818cf8;
+  margin-top: 4px;
+  word-break: break-all;
+}
+.reason { font-size: 12px; color: #93a0c2; margin: 8px 0 0; }
+
+.details { margin: 10px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.details div { display: flex; flex-direction: column; }
+.details dt { font-size: 10px; text-transform: uppercase; color: #93a0c2; letter-spacing: 0.05em; }
+.details dd { margin: 2px 0 0; font-size: 13px; font-weight: 600; }
+
+h2 { font-size: 12px; text-transform: uppercase; color: #93a0c2; margin: 0 0 8px; letter-spacing: 0.05em; }
+.cve-list { margin: 0; padding-left: 16px; font-size: 12px; line-height: 1.6; }
+
+.actions { display: flex; gap: 8px; margin-bottom: 10px; }
+.button {
+  flex: 1;
+  text-align: center;
+  background: #312e81;
+  color: #e7ecf7;
+  border: 1px solid #4338ca;
+  border-radius: 8px;
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.button:hover { background: #3730a3; }
+
+.settings { font-size: 12px; color: #93a0c2; margin-bottom: 10px; }
+.settings summary { cursor: pointer; margin-bottom: 6px; }
+.settings label { display: block; margin: 6px 0 2px; }
+.settings input {
+  width: 100%;
+  background: #0b1020;
+  border: 1px solid #2a3559;
+  border-radius: 6px;
+  color: #e7ecf7;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.settings button {
+  margin-top: 6px;
+  background: #312e81;
+  color: #e7ecf7;
+  border: 1px solid #4338ca;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.saved { color: #22c55e; margin-left: 8px; font-size: 12px; }
+
+.footnote { font-size: 10px; color: #5c6890; margin: 0; }

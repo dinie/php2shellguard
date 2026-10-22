@@ -1,4 +1,8 @@
-importScripts("config.js");
+// Chrome MV3 service workers load shared config via importScripts; Firefox
+// event pages load it through manifest background.scripts (no importScripts).
+if (typeof importScripts === "function") {
+  importScripts("config.js");
+}
 // Deploy-time default comes from api-config.json (see config.js).
 const defaultApiBasePromise = loadDefaultApiBase();
 

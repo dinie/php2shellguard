@@ -1,0 +1,4 @@
+{
+  "apiBase": "http://localhost:8000",
+  "_comment": "Deploy-time default backend URL for this extension build. Edit before packing/loading the extension, e.g. https://php2shellguard.mydomain.com. Users can still override per-browser under Backend settings in the popup (chrome.storage.sync)."
+}

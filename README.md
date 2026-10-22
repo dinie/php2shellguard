@@ -17,7 +17,8 @@ traffic is ever sent to the analysed site beyond your normal page load.
 | Component    | Path         | Role |
 |--------------|--------------|------|
 | Backend API  | `backend/`   | FastAPI: verdict evaluation, SQLite stats store, HTML dashboard + per-host reports |
-| Extension    | `extension/` | Manifest V3 Chrome extension: header capture, badge + popup, forwards observations |
+| Extension (Chrome) | `extension/` | Manifest V3 Chrome extension: header capture, badge + popup, forwards observations |
+| Extension (Firefox) | `extension-firefox/` | Same extension for Firefox 127+ (MV3 event page); sources mirror `extension/` — see its README |
 
 ## Quick start
 
@@ -35,9 +36,8 @@ dashboard at <http://localhost:8000/>.
 
 ```text
 # 2. Install the extension
-#    → open chrome://extensions
-#    → enable "Developer mode" (top right)
-#    → "Load unpacked" → select the extension/ directory
+#    Chrome:   chrome://extensions → enable "Developer mode" → "Load unpacked" → extension/
+#    Firefox:  about:debugging#/runtime/this-firefox → "Load Temporary Add-on…" → extension-firefox/manifest.json
 ```
 
 Browse the web normally. The toolbar badge updates per tab:
@@ -53,7 +53,8 @@ Browse the web normally. The toolbar badge updates per tab:
 Click the extension icon for the current site's detail, CVE info, and links
 to the full per-host report. The backend URL can be changed under
 "Backend settings" in the popup. To change the **default** backend URL for a
-deployment, edit `extension/api-config.json` before loading/packing the
+deployment, edit `extension/api-config.json` (Chrome) or
+`extension-firefox/api-config.json` (Firefox) before loading/packing the
 extension (e.g. point it at `https://php2shellguard.mydomain.com`); the popup
 override still wins per browser, and `config.js` falls back to
 `http://localhost:8000` if the file is deleted.

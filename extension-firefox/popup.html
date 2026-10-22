@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon48.png" alt="" width="24" height="24">
+    <h1>PHP2Shell Guard</h1>
+  </header>
+
+  <section id="status-card" class="card">
+    <div id="verdict" class="verdict">Checking…</div>
+    <div id="host" class="host"></div>
+    <p id="reason" class="reason"></p>
+    <dl id="details" class="details" hidden>
+      <div><dt>PHP version</dt><dd id="php-version">—</dd></div>
+      <div><dt>Patched at</dt><dd id="patched-version">—</dd></div>
+    </dl>
+  </section>
+
+  <section id="cve-card" class="card" hidden>
+    <h2>CVEs covered</h2>
+    <ul id="cve-list" class="cve-list"></ul>
+  </section>
+
+  <section class="actions">
+    <a id="report-link" class="button" href="#" target="_blank" rel="noopener" hidden>Full report</a>
+    <a id="dashboard-link" class="button" href="#" target="_blank" rel="noopener">Dashboard</a>
+  </section>
+
+  <details class="settings">
+    <summary>Backend settings</summary>
+    <label for="api-base">Backend URL</label>
+    <input type="url" id="api-base" placeholder="http://localhost:8000">
+    <button id="save-settings" type="button">Save</button>
+    <span id="settings-saved" class="saved" hidden>Saved ✓</span>
+  </details>
+
+  <p class="footnote">
+    Passive check only — no traffic is sent to the analysed site.
+    Hostname + verdict are stored by the backend.
+  </p>
+
+  <script src="config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
