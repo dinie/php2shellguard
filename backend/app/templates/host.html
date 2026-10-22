@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}{{ host }} · PHP2Shell Guard{% endblock %}
+{% block content %}
+
+{% if not detail %}
+<h1>{{ host }}</h1>
+<section class="panel">
+  <p class="empty">
+    No checks recorded for this host yet. Visit it with the PHP2Shell Guard
+    extension installed to populate this report.
+  </p>
+  <p><a href="/">← Back to dashboard</a></p>
+</section>
+{% else %}
+{% set latest = detail.latest %}
+{% set summary = detail.summary %}
+
+<h1>{{ host }}</h1>
+
+<section class="banner banner-{{ latest.status }}">
+  <div class="banner-verdict">{{ latest.status.replace("_", " ") | upper }}</div>
+  <div class="banner-sub">
+    {% if latest.php_version %}Detected PHP {{ latest.php_version }} ·{% endif %}
+    {% if latest.status == "vulnerable" %}
+      Below the php2shell patch releases ({{ upgrade_targets }}).
+    {% elif latest.status == "patched" %}
+      Includes the php2shell fix.
+    {% elif latest.status == "unknown" %}
+      PHP usage was detected, but the server hides its exact version.
+    {% else %}
+      No PHP indicators were observed in the server's response headers.
+    {% endif %}
+  </div>
+</section>
+
+<section class="cards">
+  <div class="card">
+    <div class="card-value">{{ summary.total_checks }}</div>
+    <div class="card-label">Checks recorded</div>
+  </div>
+  <div class="card">
+    <div class="card-value small">{{ summary.first_seen }}</div>
+    <div class="card-label">First seen (UTC)</div>
+  </div>
+  <div class="card">
+    <div class="card-value small">{{ summary.last_seen }}</div>
+    <div class="card-label">Last seen (UTC)</div>
+  </div>
+  <div class="card">
+    <div class="card-value small">{{ latest.source or "—" }}</div>
+    <div class="card-label">Evidence source</div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Coverage</h2>
+  <div class="columns">
+    {% for cve in cves %}
+    <div class="cve">
+      <div class="cve-head">
+        <span class="cve-id">{{ cve.id }}</span>
+        <span class="cvss">CVSS {{ "%.1f" | format(cve.cvss) }}</span>
+      </div>
+      <div class="cve-title">{{ cve.title }}</div>
+      <p>{{ cve.summary }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Remediation guidance</h2>
+  <table>
+    <thead><tr><th>Action</th><th>Detail</th></tr></thead>
+    <tbody>
+      {% for item in mitigations %}
+      <tr><td class="nowrap">{{ item.name }}</td><td>{{ item.detail }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">
+    Temporary mitigations reduce exposure only — upgrading PHP to
+    {{ upgrade_targets }} is the complete fix.
+    Reference: <a href="{{ reference_url }}" target="_blank" rel="noopener">php2shell.com</a>.
+  </p>
+</section>
+
+<section class="panel">
+  <h2>Check history</h2>
+  <table>
+    <thead>
+      <tr><th>Verdict</th><th>PHP</th><th>Evidence source</th><th>Input</th><th>Checked at (UTC)</th></tr>
+    </thead>
+    <tbody>
+      {% for row in detail.history %}
+      <tr>
+        <td><span class="chip chip-{{ row.status }}">{{ row.status.replace("_", " ") }}</span></td>
+        <td>{{ row.php_version or "—" }}</td>
+        <td>{{ row.source or "—" }}</td>
+        <td>{{ row.origin }}</td>
+        <td>{{ row.checked_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

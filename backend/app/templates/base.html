@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}PHP2Shell Guard{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="topnav">
+    <a class="brand" href="/">
+      <span class="brand-shield">&#128737;</span> PHP2Shell <strong>Guard</strong>
+    </a>
+    <div class="nav-links">
+      <a href="/">Dashboard</a>
+      <a href="/api/v1/stats">Stats API</a>
+      <a href="https://www.php2shell.com/" target="_blank" rel="noopener">php2shell.com</a>
+    </div>
+  </nav>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer">
+    Passive detection only — analysis is based on headers the browser already
+    received. Hostname + verdict are the only data ever stored.
+  </footer>
+</body>
+</html>

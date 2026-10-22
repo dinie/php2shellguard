@@ -1,0 +1,176 @@
+# PHP2Shell Guard — backend
+
+FastAPI service that receives passive header observations from the browser
+extension, evaluates them against the php2shell patched-release matrix, and
+stores usage statistics in SQLite — or PostgreSQL when
+`PHP2SHELL_DATABASE_URL` is set.
+
+## Setup
+
+Requires Python 3.12 (see `.python-version`).
+
+```bash
+uv venv --python 3.12 .venv
+. .venv/bin/activate
+uv pip install -r requirements.txt
+uvicorn app.main:app --reload        # http://localhost:8000
+```
+
+Copy `example.env` to `.env` to configure; both the app and the recheck
+script load it. All values are also honoured straight from the environment.
+
+Configuration:
+
+| Env var         | Default                    | Purpose |
+|-----------------|----------------------------|---------|
+| `PHP2SHELL_DATABASE_URL` | — | SQLAlchemy database URL; when set, stats are stored there instead of SQLite. `postgresql://`/`postgres://` URLs use the psycopg v3 driver |
+| `PHP2SHELL_DB`  | `backend/php2shell-stats.db` | SQLite stats database path (ignored when `PHP2SHELL_DATABASE_URL` is set) |
+| `NEXTDNS_API_KEY` | — | NextDNS API key, sent as `X-Api-Key` (enables the stream input together with `NEXTDNS_PROFILE`) |
+| `NEXTDNS_PROFILE` | — | NextDNS profile ID to stream logs from |
+| `NEXTDNS_BASE_URL` | `https://api.nextdns.io` | API base URL override |
+| `NEXTDNS_PROBE_CONCURRENCY` | `4` | Max concurrent domain probes |
+| `NEXTDNS_CHECK_TTL_HOURS` | `12` | Re-probe a domain at most once per this window |
+
+## NextDNS stream input
+
+When `NEXTDNS_API_KEY` and `NEXTDNS_PROFILE` are set, the backend connects to
+`GET https://api.nextdns.io/profiles/{profile}/logs/stream` (Server-Sent
+Events) inside the FastAPI process and watches DNS log events in real time.
+For each newly observed domain it **actively probes** the site's HTTPS
+response headers (a single header-only request, de-duplicated by
+`NEXTDNS_CHECK_TTL_HOURS`) and evaluates the php2shell verdict — unlike the
+strictly passive browser-extension flow, this input source sends traffic to
+the analysed sites.
+
+The last SSE event id is persisted in SQLite (`stream_state` table) and sent
+back as the `id` parameter after reconnects, so restarts do not miss or
+duplicate events. Verdicts are recorded with `origin="nextdns"` (extension
+checks use `origin="extension"`); domains whose log status is blocked are
+skipped.
+
+## Periodic rechecks (cron)
+
+`python -m app.recheck` re-verifies every stored host against its current
+headers. Each run actively probes `https://{host}/` (header-only, like the
+NextDNS input), appends a fresh verdict with `origin="recheck"`, and updates
+the `host_registry` table: the host's **original** status is captured on
+first sight and never overwritten, while `current_*` tracks the latest
+verdict. Status transitions are printed to stdout for the cron log.
+
+```cron
+*/15 * * * * cd /path/to/php2shell/backend && .venv/bin/python -m app.recheck
+```
+
+Probe failures are logged and counted in the run summary but never fail the
+run (exit code stays 0).
+
+## API
+
+### `POST /api/v1/check`
+
+Ingest one passive observation and return a verdict.
+
+```json
+{
+  "url": "https://example.com/page",
+  "server": "Apache/2.4.58 (Unix)",
+  "x_powered_by": "PHP/8.2.10",
+  "cookie_names": ["PHPSESSID"]
+}
+```
+
+Response (`200`):
+
+```json
+{
+  "host": "example.com",
+  "status": "vulnerable",
+  "php_version": "8.2.10",
+  "branch": "8.2",
+  "patched_version": "8.2.35",
+  "evidence_source": "x-powered-by",
+  "reason": "PHP 8.2.10 is below the php2shell patch release 8.2.35.",
+  "cves": [ ... ],
+  "checked_at": "2026-10-22T01:23:45.678901+00:00"
+}
+```
+
+`status` is one of `vulnerable`, `patched`, `unknown` (PHP detected, version
+hidden), `not_php`.
+
+### `GET /api/v1/stats`
+
+Aggregates: total checks, checks today, unique hosts, per-status counts
+(event-level and latest-per-host), top PHP versions, 14-day daily series,
+and the 25 most recent checks.
+
+### `GET /api/v1/hosts` / `GET /api/v1/hosts/{host}`
+
+Latest verdict per host, or full detail for one host (summary, latest
+verdict, last 50 checks). `404` when the host was never checked.
+
+### `GET /` (HTML)
+
+Dashboard: stat cards, daily activity chart, version histogram, CVE summary,
+recent checks.
+
+### `GET /hosts/{host}` (HTML)
+
+Per-host report: verdict banner, evidence source, CVE coverage, remediation
+guidance (upgrade targets + temporary mitigations), check history.
+
+### `GET /api/v1/inputs/nextdns`
+
+Status of the NextDNS stream input: `enabled`, `connected`, `events_seen`,
+`probes_recorded`, `last_event_at`, `last_error`.
+
+### `GET /health`
+
+Liveness probe.
+
+## Storage
+
+SQLite by default; set `PHP2SHELL_DATABASE_URL` to a PostgreSQL URL (e.g.
+`postgresql://php2shell:secret@localhost:5432/php2shell`) to store the same
+tables on a Postgres server instead. Table `checks(host, status, php_version,
+source, origin, checked_at)` holds every verdict, `stream_state(key, value)`
+the NextDNS resume cursor, and
+`host_registry(host, original_status, original_checked_at, current_status,
+current_checked_at)` the recheck script's first-seen tracking. Timestamps are
+stored as UTC `TEXT` (`YYYY-MM-DD HH:MM:SS`) so queries behave identically on
+both backends. Only hostname-level data is persisted — never full URLs or
+raw headers.
+
+### Migrations (Alembic)
+
+Schema versions live in `backend/alembic/` and are managed with Alembic.
+App startup and `python -m app.recheck` automatically run `alembic upgrade
+head`, so nothing needs to be applied by hand. The baseline revision `0001`
+is idempotent: databases created before Alembic was introduced are adopted in
+place (missing tables/columns/indexes — notably `checks.origin` — are added,
+existing data untouched).
+
+Manual control from `backend/`:
+
+```bash
+alembic upgrade head            # apply pending migrations
+alembic current                 # show applied revision
+alembic revision --autogenerate -m "add widgets table"   # create a new revision
+```
+
+The URL used by CLI commands resolves the same way as the app:
+`PHP2SHELL_DATABASE_URL` → `PHP2SHELL_DB` → the SQLite default in
+`alembic.ini`.
+
+## Tests
+
+```bash
+pytest
+```
+
+- `tests/test_detection.py` — header parsing and the full verdict matrix.
+- `tests/test_api.py` — endpoints, persistence, and the HTML pages, using a
+  throwaway database per test.
+- `tests/test_storage.py` — backend selection (`PHP2SHELL_DATABASE_URL`
+  precedence, Postgres URL normalisation), migration stamping, and adoption
+  of pre-Alembic databases.

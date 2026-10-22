@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · PHP2Shell Guard{% endblock %}
+{% block content %}
+<h1>Usage statistics</h1>
+<p class="muted">
+  Aggregate of every passive php2shell check reported by connected browser
+  extensions. Patched releases: 8.2.35 · 8.3.36 · 8.4.27 · 8.5.12.
+</p>
+
+<section class="cards">
+  <div class="card">
+    <div class="card-value">{{ stats.total_checks }}</div>
+    <div class="card-label">Total checks</div>
+  </div>
+  <div class="card">
+    <div class="card-value">{{ stats.checks_today }}</div>
+    <div class="card-label">Checks today</div>
+  </div>
+  <div class="card">
+    <div class="card-value">{{ stats.unique_hosts }}</div>
+    <div class="card-label">Unique hosts</div>
+  </div>
+  <div class="card status-vulnerable">
+    <div class="card-value">{{ stats.host_status_counts.get("vulnerable", 0) }}</div>
+    <div class="card-label">Vulnerable hosts</div>
+  </div>
+  <div class="card status-patched">
+    <div class="card-value">{{ stats.host_status_counts.get("patched", 0) }}</div>
+    <div class="card-label">Patched hosts</div>
+  </div>
+  <div class="card status-unknown">
+    <div class="card-value">{{ stats.host_status_counts.get("unknown", 0) }}</div>
+    <div class="card-label">Undetermined</div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Checks per day (last 14 days)</h2>
+  {% if stats.daily %}
+  <div class="chart">
+    {% for day in stats.daily %}
+    <div class="chart-col" title="{{ day.day }}">
+      {% for status in statuses %}
+        {% set n = day.counts.get(status, 0) %}
+        {% if n %}
+        <div class="chart-seg seg-{{ status }}"
+             style="height: {{ (100 * n / chart_max) | round(2) }}%"
+             title="{{ status }}: {{ n }}"></div>
+        {% endif %}
+      {% endfor %}
+      <span class="chart-day">{{ day.day[5:] }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="legend">
+    <span><i class="dot seg-vulnerable"></i> vulnerable</span>
+    <span><i class="dot seg-patched"></i> patched</span>
+    <span><i class="dot seg-unknown"></i> undetermined</span>
+    <span><i class="dot seg-not_php"></i> no PHP evidence</span>
+  </div>
+  {% else %}
+  <p class="empty">No checks recorded yet. Browse the web with the extension installed.</p>
+  {% endif %}
+</section>
+
+<div class="columns">
+  <section class="panel">
+    <h2>Detected PHP versions</h2>
+    {% if stats.version_counts %}
+    <table>
+      <thead><tr><th>Version</th><th>Checks</th></tr></thead>
+      <tbody>
+        {% for row in stats.version_counts %}
+        <tr><td>PHP {{ row.php_version }}</td><td>{{ row.count }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No PHP versions disclosed yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>CVE coverage</h2>
+    {% for cve in cves %}
+    <div class="cve">
+      <div class="cve-head">
+        <span class="cve-id">{{ cve.id }}</span>
+        <span class="cvss">CVSS {{ "%.1f" | format(cve.cvss) }}</span>
+      </div>
+      <div class="cve-title">{{ cve.title }}</div>
+      <p>{{ cve.summary }}</p>
+    </div>
+    {% endfor %}
+  </section>
+</div>
+
+<section class="panel">
+  <h2>Recent checks</h2>
+  {% if stats.recent %}
+  <table>
+    <thead>
+      <tr><th>Host</th><th>Verdict</th><th>PHP</th><th>Input</th><th>Checked at (UTC)</th></tr>
+    </thead>
+    <tbody>
+      {% for row in stats.recent %}
+      <tr>
+        <td><a href="/hosts/{{ row.host }}">{{ row.host }}</a></td>
+        <td><span class="chip chip-{{ row.status }}">{{ row.status.replace("_", " ") }}</span></td>
+        <td>{{ row.php_version or "—" }}</td>
+        <td>{{ row.origin }}</td>
+        <td>{{ row.checked_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">Nothing recorded yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
