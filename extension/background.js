@@ -1,4 +1,6 @@
-const DEFAULT_API_BASE = "http://localhost:8000";
+importScripts("config.js");
+// Deploy-time default comes from api-config.json (see config.js).
+const defaultApiBasePromise = loadDefaultApiBase();
 
 const tabStatus = new Map();
 
@@ -11,10 +13,9 @@ const BADGES = {
 };
 
 async function getApiBase() {
-  const { apiBase } = await chrome.storage.sync.get({
-    apiBase: DEFAULT_API_BASE,
-  });
-  return (apiBase || DEFAULT_API_BASE).replace(/\/+$/, "");
+  const fallback = await defaultApiBasePromise;
+  const { apiBase } = await chrome.storage.sync.get({ apiBase: fallback });
+  return (apiBase || fallback).replace(/\/+$/, "");
 }
 
 function extractHeaders(responseHeaders) {

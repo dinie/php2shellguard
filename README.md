@@ -52,7 +52,11 @@ Browse the web normally. The toolbar badge updates per tab:
 
 Click the extension icon for the current site's detail, CVE info, and links
 to the full per-host report. The backend URL can be changed under
-"Backend settings" in the popup.
+"Backend settings" in the popup. To change the **default** backend URL for a
+deployment, edit `extension/api-config.json` before loading/packing the
+extension (e.g. point it at `https://php2shellguard.mydomain.com`); the popup
+override still wins per browser, and `config.js` falls back to
+`http://localhost:8000` if the file is deleted.
 
 ## NextDNS stream input
 

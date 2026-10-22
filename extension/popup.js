@@ -1,4 +1,5 @@
-const DEFAULT_API_BASE = "http://localhost:8000";
+// Deploy-time default comes from api-config.json (see config.js, loaded via popup.html).
+const defaultApiBasePromise = loadDefaultApiBase();
 
 const LABELS = {
   vulnerable: "Vulnerable",
@@ -10,10 +11,9 @@ const LABELS = {
 };
 
 async function getApiBase() {
-  const { apiBase } = await chrome.storage.sync.get({
-    apiBase: DEFAULT_API_BASE,
-  });
-  return (apiBase || DEFAULT_API_BASE).replace(/\/+$/, "");
+  const fallback = await defaultApiBasePromise;
+  const { apiBase } = await chrome.storage.sync.get({ apiBase: fallback });
+  return (apiBase || fallback).replace(/\/+$/, "");
 }
 
 async function activeTab() {
@@ -68,7 +68,9 @@ function render(status, apiBase) {
 async function init() {
   const apiBase = await getApiBase();
   document.getElementById("dashboard-link").href = `${apiBase}/`;
-  document.getElementById("api-base").value = apiBase;
+  const input = document.getElementById("api-base");
+  input.value = apiBase;
+  input.placeholder = await defaultApiBasePromise;
 
   const tab = await activeTab();
   if (!tab || tab.id === undefined) {
@@ -81,7 +83,9 @@ async function init() {
 
 document.getElementById("save-settings").addEventListener("click", async () => {
   const value = document.getElementById("api-base").value.trim();
-  await chrome.storage.sync.set({ apiBase: value || DEFAULT_API_BASE });
+  await chrome.storage.sync.set({
+    apiBase: value || (await defaultApiBasePromise),
+  });
   const saved = document.getElementById("settings-saved");
   saved.hidden = false;
   setTimeout(() => (saved.hidden = true), 1500);
