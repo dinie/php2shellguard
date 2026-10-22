@@ -1,3 +1,7 @@
+import asyncio
+import threading
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -128,3 +132,56 @@ def test_host_report_page(client):
     missing = client.get("/hosts/missing.example.com")
     assert missing.status_code == 404
     assert "No checks recorded" in missing.text
+
+
+def _wait_for_recheck_idle(client, timeout=5.0):
+    """POST succeeds once the previous background run has finished."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        status = client.post("/recheck").status_code
+        if status == 202:
+            return status
+        time.sleep(0.05)
+    return status
+
+
+def test_recheck_endpoint_starts_and_rejects_overlap(client, monkeypatch):
+    finish = threading.Event()
+
+    async def fake_run_rechecks(storage, http_client):
+        while not finish.is_set():
+            await asyncio.sleep(0.01)
+        return []
+
+    monkeypatch.setattr("app.recheck.run_rechecks", fake_run_rechecks)
+    first = client.post("/recheck")
+    assert first.status_code == 202
+    assert first.json() == {"status": "started"}
+    follow_up = client.post("/recheck")
+    assert follow_up.status_code == 409
+    finish.set()
+    assert _wait_for_recheck_idle(client) == 202
+
+
+def test_recheck_endpoint_get_not_allowed(client):
+    assert client.get("/recheck").status_code == 405
+
+
+def test_recheck_endpoint_requires_token_when_configured(tmp_path, monkeypatch):
+    monkeypatch.setenv("PHP2SHELL_RECHECK_TOKEN", "sekrit")
+
+    async def quick_run(storage, http_client):
+        return []
+
+    monkeypatch.setattr("app.recheck.run_rechecks", quick_run)
+    app = create_app(db_path=str(tmp_path / "tok.db"))
+    with TestClient(app) as tok_client:
+        assert tok_client.post("/recheck").status_code == 401
+        wrong = tok_client.post("/recheck", headers={"authorization": "Bearer nope"})
+        assert wrong.status_code == 401
+        wrong_scheme = tok_client.post(
+            "/recheck", headers={"authorization": "sekrit"}
+        )
+        assert wrong_scheme.status_code == 401
+        ok = tok_client.post("/recheck", headers={"authorization": "Bearer sekrit"})
+        assert ok.status_code == 202

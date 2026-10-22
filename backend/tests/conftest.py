@@ -14,6 +14,7 @@ def isolated_env(monkeypatch):
         "PHP2SHELL_DB",
         "PHP2SHELL_DATABASE_URL",
         "PHP2SHELL_ACTIVE",
+        "PHP2SHELL_RECHECK_TOKEN",
     ):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setattr("app.main.load_dotenv", lambda *a, **k: False)

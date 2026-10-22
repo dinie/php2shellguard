@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
+import os
 import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -15,7 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import active, detection, nextdns, probe
+from . import active, detection, nextdns, probe, recheck
 from .models import CheckRequest, CheckResponse, CveInfo, StatsResponse
 from .storage import Storage
 
@@ -48,6 +50,9 @@ def create_app(db_path: str | None = None, http_client_factory=None) -> FastAPI:
     nextdns_config = nextdns.NextDNSConfig.from_env()
     stream_status = nextdns.StreamStatus(enabled=nextdns_config is not None)
     scan_client: httpx.AsyncClient | None = None
+    # Optional bearer guard for the recheck trigger (PHP2SHELL_RECHECK_TOKEN).
+    recheck_token = os.environ.get("PHP2SHELL_RECHECK_TOKEN") or None
+    recheck_state = {"running": False}
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -138,6 +143,31 @@ def create_app(db_path: str | None = None, http_client_factory=None) -> FastAPI:
     @app.get("/api/v1/inputs/nextdns")
     def nextdns_input() -> dict:
         return stream_status.snapshot()
+
+    @app.post("/recheck", status_code=202)
+    async def trigger_recheck(request: Request) -> dict:
+        if recheck_token is not None:
+            expected = f"Bearer {recheck_token}"
+            provided = request.headers.get("authorization", "")
+            if not hmac.compare_digest(expected, provided):
+                raise HTTPException(
+                    status_code=401, detail="invalid or missing bearer token"
+                )
+        if recheck_state["running"]:
+            raise HTTPException(status_code=409, detail="recheck already running")
+        recheck_state["running"] = True
+
+        async def _run() -> None:
+            try:
+                timeout = httpx.Timeout(probe.DEFAULT_TIMEOUT_SECONDS)
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    results = await recheck.run_rechecks(storage, client)
+                recheck.print_report(results)
+            finally:
+                recheck_state["running"] = False
+
+        asyncio.create_task(_run())
+        return {"status": "started"}
 
     @app.get("/health")
     def health() -> dict:

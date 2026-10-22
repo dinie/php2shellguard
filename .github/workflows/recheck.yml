@@ -1,0 +1,38 @@
+name: Trigger php2shell recheck
+
+# Calls the backend's recheck endpoint (POST /recheck) on a schedule so every
+# stored host is re-verified with the active detector. The base URL (and the
+# optional bearer token) are GitHub Actions environment secrets — see
+# backend/README.md for setup steps.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  trigger-recheck:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: none
+    steps:
+      - name: POST /recheck
+        env:
+          PHP2SHELL_BASE_URL: ${{ secrets.PHP2SHELL_BASE_URL }}
+          PHP2SHELL_RECHECK_TOKEN: ${{ secrets.PHP2SHELL_RECHECK_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${PHP2SHELL_BASE_URL}" ]]; then
+            echo "::error::PHP2SHELL_BASE_URL secret is not configured on the production environment"
+            exit 1
+          fi
+          url="${PHP2SHELL_BASE_URL%/}/recheck"
+          echo "Calling ${url}"
+          args=(-fsS -X POST "${url}")
+          if [[ -n "${PHP2SHELL_RECHECK_TOKEN}" ]]; then
+            args=(-H "Authorization: Bearer ${PHP2SHELL_RECHECK_TOKEN}" "${args[@]}")
+          fi
+          curl "${args[@]}"
+          echo

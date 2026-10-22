@@ -26,6 +26,7 @@ Configuration:
 | `PHP2SHELL_DATABASE_URL` | — | SQLAlchemy database URL; when set, stats are stored there instead of SQLite. `postgresql://`/`postgres://` URLs use the psycopg v3 driver |
 | `PHP2SHELL_DB`  | `backend/php2shell-stats.db` | SQLite stats database path (ignored when `PHP2SHELL_DATABASE_URL` is set) |
 | `PHP2SHELL_ACTIVE` | off | When truthy (`1`/`true`/`yes`/`on`), the `/check` endpoint and the NextDNS input use the full active detector (`app/active.py`) instead of passive/header-only evaluation. Rechecks are always active |
+| `PHP2SHELL_RECHECK_TOKEN` | — | When set, `POST /recheck` requires `Authorization: Bearer <token>` |
 | `NEXTDNS_API_KEY` | — | NextDNS API key, sent as `X-Api-Key` (enables the stream input together with `NEXTDNS_PROFILE`) |
 | `NEXTDNS_PROFILE` | — | NextDNS profile ID to stream logs from |
 | `NEXTDNS_BASE_URL` | `https://api.nextdns.io` | API base URL override |
@@ -79,6 +80,28 @@ are printed to stdout for the cron log.
 
 Probe failures are logged and counted in the run summary but never fail the
 run (exit code stays 0).
+
+### Triggering rechecks over HTTP
+
+`POST /recheck` starts a recheck run in the background inside the running
+FastAPI process: it answers `202 {"status": "started"}` immediately, or
+`409` while a previous run is still on. The run prints its report to the
+server log. Set `PHP2SHELL_RECHECK_TOKEN` to require a bearer token on this
+endpoint (recommended on internet-facing deployments).
+
+`.github/workflows/recheck.yml` ships a GitHub Actions workflow that calls
+this endpoint on a schedule (every 30 minutes, plus manual dispatch). Setup:
+
+1. Keep `POST /recheck` reachable from GitHub's runners (public URL or a
+   private network path — GitHub-hosted runners need a public route).
+2. In the repository: **Settings → Environments → `production` → Environment
+   secrets**, add `PHP2SHELL_BASE_URL` (e.g.
+   `https://php2shellguard.mydomain.com` — no trailing path or slash) and, if
+   configured on the server, `PHP2SHELL_RECHECK_TOKEN`.
+3. To use a different environment name, edit `environment:` in the workflow.
+
+A run still executes when the endpoint is not called — `python -m
+app.recheck` via cron works as before.
 
 ## API
 
